@@ -1,0 +1,28 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+
+# Dependencies & Build artifacts
+node_modules/
+dist/
+.svelte-kit/
+build/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+server
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Docker volumes & logs
+*.log
