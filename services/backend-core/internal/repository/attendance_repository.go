@@ -46,6 +46,18 @@ func (r *attendanceRepository) RecordCheckIn(ctx context.Context, att *domain.At
 	).Scan(&att.ID)
 }
 
+func (r *attendanceRepository) RecordCheckOut(ctx context.Context, id uuid.UUID, checkOutTime time.Time, status string, durationMinutes int) error {
+	query := `
+		UPDATE attendances SET
+			check_out_time = $1,
+			check_out_status = $2,
+			work_duration_minutes = $3
+		WHERE id = $4`
+
+	_, err := r.db.Exec(ctx, query, checkOutTime, status, durationMinutes, id)
+	return err
+}
+
 func (r *attendanceRepository) GetTodayAttendance(ctx context.Context, employeeID uuid.UUID, date string) (*domain.Attendance, error) {
 	query := `
 		SELECT 

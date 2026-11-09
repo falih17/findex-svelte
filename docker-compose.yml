@@ -49,7 +49,7 @@ services:
   # 3. OBJECT STORAGE: MinIO (S3-Compatible for Face Photos)
   # ==========================================================
   minio:
-    image: minio/minio:latest
+    image: insectai/minio:latest
     container_name: findex-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -61,20 +61,15 @@ services:
       - "9001:9001"
     volumes:
       - minio_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
     networks:
       - findex-network
 
   minio-init:
-    image: minio/mc:latest
+    image: insectai/minio:latest
     container_name: findex-minio-init
     depends_on:
       minio:
-        condition: service_healthy
+        condition: service_started
     volumes:
       - ./docker/minio/init.sh:/init.sh:ro
     entrypoint: ["/bin/sh", "/init.sh"]

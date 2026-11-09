@@ -80,6 +80,30 @@ func (r *branchRepository) Create(ctx context.Context, b *domain.Branch) error {
 	).Scan(&b.CreatedAt, &b.UpdatedAt)
 }
 
+func (r *branchRepository) Update(ctx context.Context, b *domain.Branch) error {
+	query := `
+		UPDATE branches SET
+			name = $1,
+			address = $2,
+			latitude = $3,
+			longitude = $4,
+			radius_meters = $5,
+			updated_at = CURRENT_TIMESTAMP
+		WHERE id = $6 AND company_id = $7`
+
+	_, err := r.db.Exec(ctx, query,
+		b.Name, b.Address, b.Latitude, b.Longitude, b.RadiusMeters,
+		b.ID, b.CompanyID,
+	)
+	return err
+}
+
+func (r *branchRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	query := `DELETE FROM branches WHERE id = $1`
+	_, err := r.db.Exec(ctx, query, id)
+	return err
+}
+
 func (r *branchRepository) CheckGeofence(ctx context.Context, branchID uuid.UUID, lat, lng float64) (*domain.BranchGeofenceCheck, error) {
 	query := `
 		SELECT 

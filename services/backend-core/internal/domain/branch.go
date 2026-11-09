@@ -31,5 +31,7 @@ type BranchRepository interface {
 	ListByCompany(ctx context.Context, companyID uuid.UUID) ([]Branch, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*Branch, error)
 	Create(ctx context.Context, b *Branch) error
+	Update(ctx context.Context, b *Branch) error
+	Delete(ctx context.Context, id uuid.UUID) error
 	CheckGeofence(ctx context.Context, branchID uuid.UUID, lat, lng float64) (*BranchGeofenceCheck, error)
 }

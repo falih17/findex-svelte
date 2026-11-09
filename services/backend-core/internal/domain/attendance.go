@@ -10,9 +10,10 @@ import (
 type AttendanceStatus string
 
 const (
-	StatusOnTime       AttendanceStatus = "ON_TIME"
-	StatusLate         AttendanceStatus = "LATE"
-	StatusWFH          AttendanceStatus = "WFH"
+	StatusOnTime        AttendanceStatus = "ON_TIME"
+	StatusLate          AttendanceStatus = "LATE"
+	StatusEarlyLeave    AttendanceStatus = "EARLY_LEAVE"
+	StatusWFH           AttendanceStatus = "WFH"
 	StatusOutOfGeofence AttendanceStatus = "OUT_OF_GEOFENCE"
 )
 
@@ -58,6 +59,7 @@ type CheckInResult struct {
 
 type AttendanceRepository interface {
 	RecordCheckIn(ctx context.Context, att *Attendance) error
+	RecordCheckOut(ctx context.Context, id uuid.UUID, checkOutTime time.Time, status string, durationMinutes int) error
 	GetTodayAttendance(ctx context.Context, employeeID uuid.UUID, date string) (*Attendance, error)
 	ListRecent(ctx context.Context, employeeID uuid.UUID, limit int) ([]Attendance, error)
 }

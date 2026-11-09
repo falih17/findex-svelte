@@ -42,19 +42,26 @@ func main() {
 	aiClient := aiservice.NewClient(cfg.AIServiceURL)
 
 	// 4. Initialize Repositories
+	companyRepo := repository.NewCompanyRepository(dbPool)
 	branchRepo := repository.NewBranchRepository(dbPool)
 	empRepo := repository.NewEmployeeRepository(dbPool)
+	shiftRepo := repository.NewShiftRepository(dbPool)
+	reportRepo := repository.NewReportRepository(dbPool)
 	attRepo := repository.NewAttendanceRepository(dbPool)
 
 	// 5. Initialize Usecases
 	authUsecase := usecase.NewAuthUsecase(empRepo, cfg.JWTSecret)
-	branchUsecase := usecase.NewBranchUsecase(branchRepo)
-	attUsecase := usecase.NewAttendanceUsecase(attRepo, branchRepo, empRepo, aiClient)
+	masterUsecase := usecase.NewMasterUsecase(companyRepo, branchRepo, empRepo, aiClient)
+	scheduleUsecase := usecase.NewScheduleUsecase(shiftRepo)
+	reportUsecase := usecase.NewReportUsecase(reportRepo)
+	attUsecase := usecase.NewAttendanceUsecase(attRepo, branchRepo, empRepo, shiftRepo, aiClient)
 
 	// 6. Initialize Handlers
 	handlers := &delivery.Handlers{
 		Auth:       delivery.NewAuthHandler(authUsecase),
-		Branch:     delivery.NewBranchHandler(branchUsecase),
+		Master:     delivery.NewMasterHandler(masterUsecase),
+		Schedule:   delivery.NewScheduleHandler(scheduleUsecase),
+		Report:     delivery.NewReportHandler(reportUsecase),
 		Attendance: delivery.NewAttendanceHandler(attUsecase),
 	}
 
@@ -72,8 +79,8 @@ func main() {
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Company-ID",
 	}))
 
-	// Register Routes
-	delivery.RegisterRoutes(app, handlers, dbPool, rdb, cfg.AIServiceURL)
+	// Register Routes with RBAC & Middlewares
+	delivery.RegisterRoutes(app, handlers, dbPool, rdb, cfg.AIServiceURL, cfg.JWTSecret)
 
 	log.Printf("🚀 Findex Backend Core running on port %s", cfg.Port)
 	log.Fatal(app.Listen(":" + cfg.Port))

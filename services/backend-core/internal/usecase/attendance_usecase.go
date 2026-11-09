@@ -13,6 +13,8 @@ import (
 
 type AttendanceUsecase interface {
 	CheckIn(ctx context.Context, req domain.CheckInRequest) (*domain.CheckInResult, error)
+	CheckOut(ctx context.Context, employeeID uuid.UUID, lat, lng float64) (*domain.Attendance, error)
+	SelfEnrollFace(ctx context.Context, employeeID uuid.UUID, photoBytes []byte, filename string) (*domain.EmployeeBiometrics, error)
 	GetRecentHistory(ctx context.Context, employeeID uuid.UUID) ([]domain.Attendance, error)
 }
 
@@ -20,6 +22,7 @@ type attendanceUsecase struct {
 	attRepo      domain.AttendanceRepository
 	branchRepo   domain.BranchRepository
 	empRepo      domain.EmployeeRepository
+	shiftRepo    domain.ShiftRepository
 	aiClient     *aiservice.Client
 	minThreshold float64
 }
@@ -28,12 +31,14 @@ func NewAttendanceUsecase(
 	attRepo domain.AttendanceRepository,
 	branchRepo domain.BranchRepository,
 	empRepo domain.EmployeeRepository,
+	shiftRepo domain.ShiftRepository,
 	aiClient *aiservice.Client,
 ) AttendanceUsecase {
 	return &attendanceUsecase{
 		attRepo:      attRepo,
 		branchRepo:   branchRepo,
 		empRepo:      empRepo,
+		shiftRepo:    shiftRepo,
 		aiClient:     aiClient,
 		minThreshold: 0.80, // Default 80% cosine similarity
 	}
@@ -77,7 +82,7 @@ func (u *attendanceUsecase) CheckIn(ctx context.Context, req domain.CheckInReque
 		bio := &domain.EmployeeBiometrics{
 			CompanyID:           emp.CompanyID,
 			EmployeeID:          emp.ID,
-			MasterImageURL:      "local://initial_enrollment.jpg",
+			MasterImageURL:      fmt.Sprintf("master-faces/%s_initial.jpg", emp.ID),
 			FaceEmbedding:       aiResult.Embedding,
 			LivenessScoreSample: aiResult.LivenessScore,
 		}
@@ -95,7 +100,6 @@ func (u *attendanceUsecase) CheckIn(ctx context.Context, req domain.CheckInReque
 		isInside = geoCheck.IsInside
 		distance = geoCheck.DistanceMeters
 	} else {
-		// Fallback if branch has no strict geofence or employee has WFH rights
 		if emp.AllowWFH {
 			isInside = true
 			distance = 0.0
@@ -108,6 +112,16 @@ func (u *attendanceUsecase) CheckIn(ctx context.Context, req domain.CheckInReque
 			status = domain.StatusOutOfGeofence
 		} else {
 			status = domain.StatusWFH
+		}
+	} else {
+		// Validasi batas check-in berdasarkan shift (CheckInDeadline)
+		shifts, _ := u.shiftRepo.ListByCompany(ctx, emp.CompanyID)
+		if len(shifts) > 0 {
+			// Compare with first active shift's deadline
+			nowTime := time.Now().Format("15:04:05")
+			if shifts[0].CheckInDeadline != "" && nowTime > shifts[0].CheckInDeadline {
+				status = domain.StatusLate
+			}
 		}
 	}
 
@@ -138,6 +152,78 @@ func (u *attendanceUsecase) CheckIn(ctx context.Context, req domain.CheckInReque
 		InsideGeofence:  isInside,
 		Message:         "Presensi masuk berhasil dicatat!",
 	}, nil
+}
+
+func (u *attendanceUsecase) CheckOut(ctx context.Context, employeeID uuid.UUID, lat, lng float64) (*domain.Attendance, error) {
+	today := time.Now().Format("2006-01-02")
+	existing, err := u.attRepo.GetTodayAttendance(ctx, employeeID, today)
+	if err != nil || existing == nil || existing.CheckInTime == nil {
+		return nil, errors.New("anda belum melakukan presensi masuk hari ini")
+	}
+
+	if existing.CheckOutTime != nil {
+		return nil, errors.New("anda sudah melakukan presensi pulang hari ini")
+	}
+
+	now := time.Now()
+	nowTime := now.Format("15:04:05")
+	checkoutStatus := "NORMAL"
+
+	// Validasi Waktu Awal Checkout
+	emp, _ := u.empRepo.GetByID(ctx, employeeID)
+	if emp != nil {
+		shifts, _ := u.shiftRepo.ListByCompany(ctx, emp.CompanyID)
+		if len(shifts) > 0 && shifts[0].EarliestCheckoutTime != "" {
+			if nowTime < shifts[0].EarliestCheckoutTime {
+				checkoutStatus = "EARLY_LEAVE"
+			}
+		}
+	}
+
+	duration := int(now.Sub(*existing.CheckInTime).Minutes())
+	if err := u.attRepo.RecordCheckOut(ctx, existing.ID, now, checkoutStatus, duration); err != nil {
+		return nil, fmt.Errorf("gagal mencatat checkout: %w", err)
+	}
+
+	existing.CheckOutTime = &now
+	existing.CheckOutStatus = checkoutStatus
+	existing.WorkDurationMinutes = duration
+
+	return existing, nil
+}
+
+func (u *attendanceUsecase) SelfEnrollFace(ctx context.Context, employeeID uuid.UUID, photoBytes []byte, filename string) (*domain.EmployeeBiometrics, error) {
+	emp, err := u.empRepo.GetByID(ctx, employeeID)
+	if err != nil {
+		return nil, errors.New("pegawai tidak ditemukan")
+	}
+
+	aiRes, err := u.aiClient.ExtractFaceAndVerifyLiveness(ctx, photoBytes, filename)
+	if err != nil {
+		return nil, fmt.Errorf("biometric extraction error: %w", err)
+	}
+
+	if !aiRes.FaceDetected {
+		return nil, errors.New("wajah tidak terdeteksi pada foto. Silakan ambil foto ulang.")
+	}
+
+	if !aiRes.IsLive {
+		return nil, errors.New("liveness check gagal: foto terindikasi layar atau tidak alami.")
+	}
+
+	bio := &domain.EmployeeBiometrics{
+		CompanyID:           emp.CompanyID,
+		EmployeeID:          emp.ID,
+		MasterImageURL:      fmt.Sprintf("master-faces/%s_self.jpg", emp.ID),
+		FaceEmbedding:       aiRes.Embedding,
+		LivenessScoreSample: aiRes.LivenessScore,
+	}
+
+	if err := u.empRepo.SaveBiometrics(ctx, bio); err != nil {
+		return nil, fmt.Errorf("gagal menyimpan basis data wajah: %w", err)
+	}
+
+	return bio, nil
 }
 
 func (u *attendanceUsecase) GetRecentHistory(ctx context.Context, employeeID uuid.UUID) ([]domain.Attendance, error) {

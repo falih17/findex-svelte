@@ -1,6 +1,8 @@
 <script>
 	import { onMount } from 'svelte';
-	import { getCurrentCoordinates, isNativePlatform } from '$lib/utils/native';
+	import { Card, Button, Badge, Alert, Spinner } from 'flowbite-svelte';
+	import { getCurrentCoordinates } from '$lib/utils/native';
+	import { auth } from '$lib/stores/auth.svelte';
 
 	let videoElement;
 	let canvasElement;
@@ -10,8 +12,9 @@
 	let cameraActive = false;
 	let locationStatus = 'Mendeteksi lokasi...';
 	let coords = { latitude: null, longitude: null, accuracy: null };
-	let checkInResult = null;
+	let attendanceResult = null;
 	let errorMessage = '';
+	let successMessage = '';
 
 	const BACKEND_URL = 'http://localhost:8080/api/v1';
 
@@ -52,7 +55,7 @@
 			}
 		} catch (err) {
 			console.error('Camera error:', err);
-			errorMessage = 'Akses kamera ditolak atau tidak tersedia. Izinkan akses kamera untuk presensi.';
+			errorMessage = 'Akses kamera tidak tersedia atau belum diizinkan.';
 			cameraActive = false;
 		}
 	}
@@ -63,12 +66,19 @@
 		}
 	}
 
+	async function captureSnapshot() {
+		const ctx = canvasElement.getContext('2d');
+		canvasElement.width = videoElement.videoWidth || 640;
+		canvasElement.height = videoElement.videoHeight || 640;
+		ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+		return new Promise((resolve) => canvasElement.toBlob(resolve, 'image/jpeg', 0.85));
+	}
+
 	async function handleCheckIn() {
 		if (!coords.latitude || !coords.longitude) {
-			errorMessage = 'Lokasi GPS belum didapatkan. Tunggu beberapa saat atau refresh lokasi.';
+			errorMessage = 'Lokasi GPS belum terkunci. Tunggu sebentar atau aktifkan GPS.';
 			return;
 		}
-
 		if (!videoElement || !cameraActive) {
 			errorMessage = 'Kamera belum aktif.';
 			return;
@@ -76,27 +86,19 @@
 
 		loading = true;
 		errorMessage = '';
-		checkInResult = null;
+		attendanceResult = null;
 
 		try {
-			// 1. Capture snapshot from video stream onto canvas
-			const ctx = canvasElement.getContext('2d');
-			canvasElement.width = videoElement.videoWidth || 640;
-			canvasElement.height = videoElement.videoHeight || 640;
-			ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+			const blob = await captureSnapshot();
+			const empID = auth.user?.id || '66666666-6666-6666-6666-666666666666';
 
-			// 2. Convert to Blob
-			const blob = await new Promise((resolve) => canvasElement.toBlob(resolve, 'image/jpeg', 0.85));
-
-			// 3. Prepare FormData
 			const formData = new FormData();
 			formData.append('photo', blob, 'clockin.jpg');
 			formData.append('latitude', coords.latitude.toString());
 			formData.append('longitude', coords.longitude.toString());
-			formData.append('employee_id', '55555555-5555-5555-5555-555555555555');
+			formData.append('employee_id', empID);
 			formData.append('branch_id', '22222222-2222-2222-2222-222222222222');
 
-			// 4. Send to Backend
 			const res = await fetch(`${BACKEND_URL}/attendance/check-in`, {
 				method: 'POST',
 				body: formData
@@ -107,7 +109,67 @@
 				throw new Error(data.error || 'Presensi gagal diproses.');
 			}
 
-			checkInResult = data;
+			attendanceResult = data.data;
+			successMessage = data.message || 'Presensi masuk berhasil dicatat!';
+		} catch (err) {
+			errorMessage = err.message;
+		} finally {
+			loading = false;
+		}
+	}
+
+	async function handleCheckOut() {
+		loading = true;
+		errorMessage = '';
+		attendanceResult = null;
+
+		try {
+			const empID = auth.user?.id || '66666666-6666-6666-6666-666666666666';
+			const formData = new FormData();
+			formData.append('employee_id', empID);
+			formData.append('latitude', (coords.latitude || 0).toString());
+			formData.append('longitude', (coords.longitude || 0).toString());
+
+			const res = await fetch(`${BACKEND_URL}/attendance/check-out`, {
+				method: 'POST',
+				body: formData
+			});
+
+			const data = await res.json();
+			if (!res.ok) {
+				throw new Error(data.error || 'Presensi pulang gagal.');
+			}
+
+			successMessage = `Presensi pulang berhasil dicatat (Status: ${data.data.check_out_status})`;
+		} catch (err) {
+			errorMessage = err.message;
+		} finally {
+			loading = false;
+		}
+	}
+
+	async function handleSelfEnrollFace() {
+		if (!videoElement || !cameraActive) return;
+		loading = true;
+		errorMessage = '';
+
+		try {
+			const blob = await captureSnapshot();
+			const empID = auth.user?.id || '66666666-6666-6666-6666-666666666666';
+
+			const formData = new FormData();
+			formData.append('photo', blob, 'master.jpg');
+			formData.append('employee_id', empID);
+
+			const res = await fetch(`${BACKEND_URL}/attendance/self-enroll-face`, {
+				method: 'POST',
+				body: formData
+			});
+
+			const data = await res.json();
+			if (!res.ok) throw new Error(data.error || 'Gagal mendaftarkan master wajah');
+
+			successMessage = 'Wajah Anda berhasil didaftarkan sebagai basis data biometrik master!';
 		} catch (err) {
 			errorMessage = err.message;
 		} finally {
@@ -116,19 +178,19 @@
 	}
 </script>
 
-<div class="w-full space-y-4">
+<div class="max-w-lg mx-auto space-y-4">
 	<!-- Header -->
-	<header class="text-center space-y-1">
-		<div class="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 text-emerald-400 rounded-full text-xs font-medium border border-emerald-500/20">
-			<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-			Findex Multi-Tenant SaaS
+	<div class="text-center space-y-1">
+		<div class="inline-flex items-center gap-1.5">
+			<Badge color="green" class="font-mono text-xs">FINDEX BIOMETRIC</Badge>
+			<Badge color="dark" class="font-mono text-xs">GEOFENCE POSTGIS</Badge>
 		</div>
-		<h1 class="text-2xl font-bold tracking-tight text-white">Presensi Masuk</h1>
-		<p class="text-xs text-slate-400">Verifikasi Wajah Biometrik & Geofence Kantor</p>
-	</header>
+		<h1 class="text-2xl font-bold tracking-tight text-white">Presensi Pegawai</h1>
+		<p class="text-xs text-gray-400">Verifikasi Wajah Biometrik & Validasi Geofence Kantor</p>
+	</div>
 
 	<!-- Camera Frame Card -->
-	<div class="relative bg-slate-800 rounded-2xl overflow-hidden border border-slate-700/80 shadow-2xl aspect-square flex items-center justify-center">
+	<div class="relative bg-gray-900 rounded-2xl overflow-hidden border border-gray-800 shadow-2xl aspect-square flex items-center justify-center">
 		<!-- Live Video Stream -->
 		<video
 			bind:this={videoElement}
@@ -146,70 +208,98 @@
 			<div class="w-48 h-64 border-2 border-dashed border-emerald-400/60 rounded-[50%] animate-pulse"></div>
 		</div>
 
-		<!-- Camera Status Indicator -->
-		<div class="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] font-medium text-slate-300 flex items-center gap-1.5">
-			<span class={`w-2 h-2 rounded-full ${cameraActive ? 'bg-green-500' : 'bg-red-500'}`}></span>
-			{cameraActive ? 'Kamera Aktif' : 'Kamera Mati'}
+		<!-- Camera Status Indicator Badge -->
+		<div class="absolute top-3 left-3">
+			<Badge color={cameraActive ? 'green' : 'red'} class="text-[11px] font-medium backdrop-blur-md">
+				<span class={`w-2 h-2 rounded-full mr-1.5 ${cameraActive ? 'bg-green-400' : 'bg-red-400'}`}></span>
+				{cameraActive ? 'Kamera Aktif' : 'Kamera Mati'}
+			</Badge>
 		</div>
 	</div>
 
-	<!-- Geolocation & Branch Info -->
-	<div class="bg-slate-800/80 backdrop-blur-md rounded-xl p-3.5 border border-slate-700/60 space-y-2 text-xs">
+	<!-- Geolocation & Branch Info Card -->
+	<Card class="bg-gray-900 border-gray-800 p-3.5 space-y-2 text-xs">
 		<div class="flex items-center justify-between">
-			<span class="text-slate-400 font-medium">Lokasi Kantor Tujuan:</span>
+			<span class="text-gray-400 font-medium">Lokasi Kantor:</span>
 			<span class="text-white font-semibold">Headquarters Jakarta</span>
 		</div>
-		<div class="flex items-center justify-between border-t border-slate-700/40 pt-2">
-			<span class="text-slate-400 font-medium">Status GPS Anda:</span>
+		<div class="flex items-center justify-between border-t border-gray-800 pt-2">
+			<span class="text-gray-400 font-medium">Status GPS:</span>
 			<span class="text-emerald-400 font-mono text-[11px]">{locationStatus}</span>
 		</div>
 		{#if coords.latitude}
-			<div class="text-[11px] text-slate-500 font-mono">
+			<div class="text-[11px] text-gray-500 font-mono">
 				Lat: {coords.latitude.toFixed(5)}, Lng: {coords.longitude.toFixed(5)}
 			</div>
 		{/if}
-	</div>
+	</Card>
 
 	<!-- Error Alert -->
 	{#if errorMessage}
-		<div class="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-xs flex items-start gap-2">
-			<span class="text-base">⚠️</span>
-			<div>
-				<p class="font-semibold">Presensi Gagal</p>
-				<p>{errorMessage}</p>
-			</div>
-		</div>
+		<Alert color="red" class="text-xs" dismissable>
+			<span class="font-bold">Presensi Gagal:</span> {errorMessage}
+		</Alert>
 	{/if}
 
 	<!-- Success Alert -->
-	{#if checkInResult}
-		<div class="p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs space-y-1.5">
-			<div class="flex items-center gap-2 text-sm font-bold text-emerald-400">
-				<span>✅</span> Presensi Berhasil Dicatat!
-			</div>
-			<div class="grid grid-cols-2 gap-1 text-[11px] pt-1 border-t border-emerald-500/20">
-				<div>Waktu: <span class="font-semibold text-white">{checkInResult.time}</span></div>
-				<div>Status: <span class="font-semibold text-white">{checkInResult.status}</span></div>
-				<div>Jarak Kantor: <span class="font-semibold text-white">{Math.round(checkInResult.distance_meters || 0)} meter</span></div>
-				<div>Liveness: <span class="font-semibold text-white">{Math.round((checkInResult.liveness_score || 0) * 100)}%</span></div>
-			</div>
-		</div>
+	{#if successMessage}
+		<Alert color="green" class="text-xs" dismissable>
+			<span class="font-bold">Berhasil:</span> {successMessage}
+		</Alert>
 	{/if}
 
-	<!-- Action Button -->
-	<button
-		onclick={handleCheckIn}
-		disabled={loading || !cameraActive}
-		class="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] transition-all disabled:opacity-50 disabled:pointer-events-none rounded-xl font-semibold text-slate-950 text-sm shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2"
-	>
-		{#if loading}
-			<svg class="animate-spin h-5 w-5 text-slate-950" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-				<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-				<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-			</svg>
-			<span>Memverifikasi Wajah & Lokasi...</span>
-		{:else}
-			<span>📸 Ambil Foto & Presensi Sekarang</span>
-		{/if}
-	</button>
+	<!-- Attendance Result Summary -->
+	{#if attendanceResult}
+		<Card class="bg-gray-900/90 border-emerald-500/30 p-4 space-y-2 text-xs">
+			<div class="flex items-center justify-between border-b border-gray-800 pb-2">
+				<span class="font-bold text-emerald-400 text-sm">Hasil Presensi Masuk</span>
+				<Badge color={attendanceResult.status === 'ON_TIME' ? 'green' : 'yellow'} class="font-mono text-[10px]">
+					{attendanceResult.status}
+				</Badge>
+			</div>
+			<div class="grid grid-cols-2 gap-2 text-gray-300 text-[11px]">
+				<div>Waktu: <span class="font-semibold text-white">{attendanceResult.check_in_time}</span></div>
+				<div>Jarak Kantor: <span class="font-semibold text-white">{Math.round(attendanceResult.distance_meters || 0)}m</span></div>
+				<div>Kecocokan Wajah: <span class="font-semibold text-white">{Math.round((attendanceResult.similarity_score || 0) * 100)}%</span></div>
+				<div>Skor Liveness: <span class="font-semibold text-white">{Math.round((attendanceResult.liveness_score || 0) * 100)}%</span></div>
+			</div>
+		</Card>
+	{/if}
+
+	<!-- Action Buttons -->
+	<div class="space-y-2">
+		<Button
+			onclick={handleCheckIn}
+			disabled={loading || !cameraActive}
+			color="green"
+			class="w-full py-3.5 font-bold text-slate-950 text-sm shadow-lg shadow-emerald-500/20"
+		>
+			{#if loading}
+				<Spinner class="mr-2" size="4" />
+				<span>Memverifikasi Wajah & GPS...</span>
+			{:else}
+				<span>📸 Ambil Foto & Presensi Masuk</span>
+			{/if}
+		</Button>
+
+		<div class="grid grid-cols-2 gap-2">
+			<Button
+				onclick={handleCheckOut}
+				disabled={loading}
+				color="light"
+				class="py-2.5 text-xs font-semibold text-gray-300 hover:text-white"
+			>
+				🚪 Presensi Pulang
+			</Button>
+
+			<Button
+				onclick={handleSelfEnrollFace}
+				disabled={loading || !cameraActive}
+				color="purple"
+				class="py-2.5 text-xs font-semibold"
+			>
+				👤 Daftarkan Master Wajah
+			</Button>
+		</div>
+	</div>
 </div>

@@ -82,7 +82,43 @@ findex-svelte/
 
 ---
 
-## ⚡ Fitur Utama Findex
+## 👥 Matriks Hak Akses Pengguna (Role-Based Access Control)
+
+Sistem Findex membedakan hak akses secara ketat melalui middleware RBAC:
+
+| Modul / Kelompok Fitur | **OWNER** (Platform Owner) | **ADMIN_COMPANY** (HR/Admin Perusahaan) | **EMPLOYEE** (Karyawan) |
+| :--- | :---: | :---: | :---: |
+| **Data Company** (SaaS Tenant Management) | ✅ **Full Akses** | ❌ Ditolak (403) | ❌ Ditolak (403) |
+| **Data Employee & Upload Wajah Master** | ✅ **Full Akses** | ✅ **Kelola Pegawai & Foto Wajah** | ❌ Ditolak (403) |
+| **Data Lokasi Absen (Geofence & Radius)**| ✅ **Full Akses** | ✅ **Atur Titik Lokasi Kantor** | ❌ Ditolak (403) |
+| **Manajemen Jadwal** (Batas Check-in & Awal Checkout)| ✅ **Full Akses** | ✅ **Atur Shift & Jam Toleransi** | ❌ Ditolak (403) |
+| **Kelompok Laporan** (Rekap Kehadiran) | ✅ **Laporan Global** | ✅ **Laporan Perusahaan** | ❌ Ditolak (403) |
+| **Presensi Masuk & Pulang (Wajah + GPS)**| ✅ Boleh Presensi | ✅ Boleh Presensi | ✅ **Presensi Mandiri** |
+| **Self-Enrollment Wajah Mandiri** | ✅ Boleh | ✅ Boleh | ✅ **Unggah Wajah Sendiri** |
+| **Riwayat Presensi Pribadi** | ✅ Akses | ✅ Akses | ✅ **Histori Kehadiran Pribadi** |
+
+### Endpoint API Berdasarkan Kelompok Menu:
+
+#### 1. Kelompok Data Master (`/api/v1/master/`)
+* `GET|POST /api/v1/master/companies` - Manajemen Tenant *(Owner Only)*
+* `GET|POST|PUT|DELETE /api/v1/master/locations` - Manajemen Titik Lokasi Absen *(Owner & Admin Company)*
+* `GET|POST|PUT|DELETE /api/v1/master/employees` - Manajemen Data Pegawai *(Owner & Admin Company)*
+* `POST /api/v1/master/employees/:id/face-biometric` - Admin mendaftarkan foto basis data wajah pegawai *(Owner & Admin Company)*
+
+#### 2. Manajemen Jadwal Kerja (`/api/v1/schedules/`)
+* `GET|POST|PUT|DELETE /api/v1/schedules/shifts` - Atur Shift Kerja (Jam Mulai, **Batas Maksimal Check-in**, **Waktu Awal Boleh Checkout**, Jam Selesai) *(Owner & Admin Company)*
+* `POST /api/v1/schedules/assign` - Tetapkan jadwal shift ke pegawai tertentu *(Owner & Admin Company)*
+
+#### 3. Kelompok Laporan (`/api/v1/reports/`)
+* `GET /api/v1/reports/attendance` - Laporan rekapitulasi kehadiran dengan filter tanggal, cabang, pegawai, status (On-Time, Late, Early Leave, WFH, Out of Geofence) *(Owner & Admin Company)*
+
+#### 4. Presensi & Self-Service Pegawai (`/api/v1/attendance/`)
+* `POST /api/v1/attendance/check-in` - Presensi masuk (Wajah + GPS)
+* `POST /api/v1/attendance/check-out` - Presensi pulang (Validasi waktu awal checkout)
+* `POST /api/v1/attendance/self-enroll-face` - Pegawai mengunggah master wajah mandiri
+* `GET /api/v1/attendance/history` - Riwayat presensi pribadi pegawai
+
+---
 
 1. **Biometric Face Verification & Anti-Spoofing**:
    * Menghitung skor ketajaman tepi (*Laplacian variance*) dan konsistensi warna untuk mendeteksi apakah wajah yang menghadap kamera adalah orang asli atau foto hasil cetak/layar ponsel (*replay attack*).

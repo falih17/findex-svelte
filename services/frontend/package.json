@@ -19,7 +19,12 @@
     "@capacitor/core": "^6.2.0",
     "@capacitor/device": "^6.0.2",
     "@capacitor/geolocation": "^6.1.0",
-    "@capacitor/preferences": "^6.0.3"
+    "@capacitor/preferences": "^6.0.3",
+    "@popperjs/core": "^2.11.8",
+    "flowbite": "^2.5.2",
+    "flowbite-svelte": "^0.47.3",
+    "flowbite-svelte-icons": "^1.6.2",
+    "tailwind-merge": "^2.5.4"
   },
   "devDependencies": {
     "@capacitor/android": "^6.2.0",

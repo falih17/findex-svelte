@@ -1,0 +1,21 @@
+{
+	"appId": "com.findex.attendance",
+	"appName": "Findex Attendance",
+	"webDir": "build",
+	"server": {
+		"androidScheme": "https",
+		"cleartext": true,
+		"allowNavigation": [
+			"*"
+		]
+	},
+	"plugins": {
+		"Camera": {},
+		"Geolocation": {}
+	},
+	"android": {
+		"allowMixedContent": true,
+		"captureInput": true,
+		"webContentsDebuggingEnabled": true
+	}
+}

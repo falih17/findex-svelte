@@ -103,9 +103,11 @@ CREATE INDEX IF NOT EXISTS idx_biometrics_company_emp ON employee_biometrics(com
 CREATE TABLE IF NOT EXISTS shifts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-    name VARCHAR(100) NOT NULL,           -- Cth: Shift Reguler Pagi, Shift Siang
-    start_time TIME NOT NULL,              -- 08:00:00
-    end_time TIME NOT NULL,                -- 17:00:00
+    name VARCHAR(100) NOT NULL,               -- Cth: Shift Reguler Pagi, Shift Siang
+    start_time TIME NOT NULL,                  -- 08:00:00 (Jam Mulai Kerja)
+    check_in_deadline TIME DEFAULT '08:30:00', -- Batas Akhir Check-In (setelah ini = Terlambat/Late)
+    earliest_checkout_time TIME DEFAULT '16:30:00', -- Waktu Awal Boleh Check-Out (sebelum ini = Pulang Cepat)
+    end_time TIME NOT NULL,                    -- 17:00:00 (Jam Selesai Kerja)
     grace_period_late_minutes INT DEFAULT 15,
     min_work_hours NUMERIC(4,2) DEFAULT 8.0,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -270,15 +272,26 @@ BEGIN
     VALUES (v_dept_id, v_company_id, 'Engineering & IT')
     ON CONFLICT (id) DO NOTHING;
 
-    -- 4. Demo Shift (08:00 - 17:00 WIB, 15 min grace period)
-    INSERT INTO shifts (id, company_id, name, start_time, end_time, grace_period_late_minutes)
-    VALUES (v_shift_id, v_company_id, 'Shift Reguler Pagi', '08:00:00', '17:00:00', 15)
+    -- 4. Demo Shift (08:00 - 17:00 WIB, Batas Check-in: 08:30, Awal Checkout: 16:30)
+    INSERT INTO shifts (id, company_id, name, start_time, check_in_deadline, earliest_checkout_time, end_time, grace_period_late_minutes)
+    VALUES (v_shift_id, v_company_id, 'Shift Reguler Pagi', '08:00:00', '08:30:00', '16:30:00', '17:00:00', 15)
     ON CONFLICT (id) DO NOTHING;
 
-    -- 5. Demo Admin Employee (password: 'password123' bcrypt hash)
+    -- 5. Demo Users with 3 Explicit Roles (Owner, Admin Company, Employee)
+    -- A. Platform Owner (Bisa akses semua modul)
+    INSERT INTO employees (id, company_id, nik, name, email, password_hash, role, allow_wfh)
+    VALUES ('00000000-0000-0000-0000-000000000001', v_company_id, 'OWNER01', 'SaaS Platform Owner', 'owner@findex.local', crypt('password123', gen_salt('bf', 10)), 'OWNER', TRUE)
+    ON CONFLICT (company_id, email) DO NOTHING;
+
+    -- B. Admin Company (Akses: Employee, Jadwal, Lokasi Absen, Laporan)
     INSERT INTO employees (id, company_id, department_id, default_branch_id, nik, name, email, password_hash, role, allow_wfh)
-    VALUES (v_admin_emp_id, v_company_id, v_dept_id, v_branch_id, 'EMP001', 'Admin Findex', 'admin@findex.local', '$2a$12$e6mZ8b2/1e3Fq88RzV4vV.8WjLpYwQd3bJ12q4xPzR6v3rL7y/eey', 'SUPERADMIN', TRUE)
-    ON CONFLICT (id) DO NOTHING;
+    VALUES (v_admin_emp_id, v_company_id, v_dept_id, v_branch_id, 'EMP001', 'Admin Findex', 'admin@findex.local', crypt('password123', gen_salt('bf', 10)), 'ADMIN_COMPANY', TRUE)
+    ON CONFLICT (company_id, email) DO NOTHING;
+
+    -- C. Employee (Presensi Wajah & GPS, Riwayat, Upload Wajah Mandiri)
+    INSERT INTO employees (id, company_id, department_id, default_branch_id, nik, name, email, password_hash, role, allow_wfh)
+    VALUES ('66666666-6666-6666-6666-666666666666', v_company_id, v_dept_id, v_branch_id, 'EMP002', 'Budi Pratama', 'employee@findex.local', crypt('password123', gen_salt('bf', 10)), 'EMPLOYEE', FALSE)
+    ON CONFLICT (company_id, email) DO NOTHING;
 
     -- 6. Demo Leave Types
     INSERT INTO leave_types (company_id, name, default_quota_days, is_deduct_annual)

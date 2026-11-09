@@ -1,28 +1,11 @@
-# Base image: PostgreSQL 16 with PostGIS 3.4
-FROM postgis/postgis:16-3.4
+# Base image: PostgreSQL 16 with pgvector on Debian 12 Bookworm (Multi-arch: ARM64 & AMD64)
+FROM pgvector/pgvector:pg16
 
-# Metadata
 LABEL maintainer="Findex Engineering <dev@findex.local>"
-LABEL description="PostgreSQL 16 with PostGIS 3.4 and pgvector extension for SaaS Presensi"
+LABEL description="PostgreSQL 16 with pgvector and PostGIS for SaaS Presensi Findex"
 
-# Install build dependencies for pgvector
+# Install PostGIS 3 for PostgreSQL 16 directly from official PGDG repository
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    git \
-    postgresql-server-dev-16 \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-# Clone and compile pgvector from source (v0.8.0)
-RUN git clone --branch v0.8.0 https://github.com/pgvector/pgvector.git /tmp/pgvector \
-    && cd /tmp/pgvector \
-    && make \
-    && make install \
-    && rm -rf /tmp/pgvector
-
-# Clean build packages to reduce image size
-RUN apt-get purge -y --auto-remove \
-    build-essential \
-    git \
-    postgresql-server-dev-16 \
+    postgresql-16-postgis-3 \
+    postgresql-16-postgis-3-scripts \
     && rm -rf /var/lib/apt/lists/*
