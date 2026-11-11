@@ -74,6 +74,7 @@ func RegisterRoutes(app *fiber.App, h *Handlers, db *pgxpool.Pool, rdb *redis.Cl
 	companies.Post("/", h.Master.CreateCompany)
 	companies.Get("/:id", h.Master.GetCompany)
 	companies.Put("/:id", h.Master.UpdateCompany)
+	companies.Patch("/:id/status", h.Master.ToggleCompanyStatus)
 
 	// 1.B. Data Location / Lokasi Absen -> OWNER & ADMIN COMPANY
 	locations := master.Group("/locations", middleware.RequireRoles(domain.RoleOwner, domain.RoleAdminCompany))

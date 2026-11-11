@@ -50,11 +50,11 @@ func main() {
 	attRepo := repository.NewAttendanceRepository(dbPool)
 
 	// 5. Initialize Usecases
-	authUsecase := usecase.NewAuthUsecase(empRepo, cfg.JWTSecret)
+	authUsecase := usecase.NewAuthUsecase(empRepo, companyRepo, cfg.JWTSecret)
 	masterUsecase := usecase.NewMasterUsecase(companyRepo, branchRepo, empRepo, aiClient)
 	scheduleUsecase := usecase.NewScheduleUsecase(shiftRepo)
 	reportUsecase := usecase.NewReportUsecase(reportRepo)
-	attUsecase := usecase.NewAttendanceUsecase(attRepo, branchRepo, empRepo, shiftRepo, aiClient)
+	attUsecase := usecase.NewAttendanceUsecase(attRepo, branchRepo, empRepo, shiftRepo, companyRepo, aiClient)
 
 	// 6. Initialize Handlers
 	handlers := &delivery.Handlers{

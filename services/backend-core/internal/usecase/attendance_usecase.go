@@ -23,6 +23,7 @@ type attendanceUsecase struct {
 	branchRepo   domain.BranchRepository
 	empRepo      domain.EmployeeRepository
 	shiftRepo    domain.ShiftRepository
+	compRepo     domain.CompanyRepository
 	aiClient     *aiservice.Client
 	minThreshold float64
 }
@@ -32,6 +33,7 @@ func NewAttendanceUsecase(
 	branchRepo domain.BranchRepository,
 	empRepo domain.EmployeeRepository,
 	shiftRepo domain.ShiftRepository,
+	compRepo domain.CompanyRepository,
 	aiClient *aiservice.Client,
 ) AttendanceUsecase {
 	return &attendanceUsecase{
@@ -39,6 +41,7 @@ func NewAttendanceUsecase(
 		branchRepo:   branchRepo,
 		empRepo:      empRepo,
 		shiftRepo:    shiftRepo,
+		compRepo:     compRepo,
 		aiClient:     aiClient,
 		minThreshold: 0.80, // Default 80% cosine similarity
 	}
@@ -49,6 +52,13 @@ func (u *attendanceUsecase) CheckIn(ctx context.Context, req domain.CheckInReque
 	emp, err := u.empRepo.GetByID(ctx, req.EmployeeID)
 	if err != nil {
 		return nil, fmt.Errorf("employee not found: %w", err)
+	}
+
+	if u.compRepo != nil {
+		comp, err := u.compRepo.GetByID(ctx, emp.CompanyID)
+		if err == nil && comp != nil && !comp.IsActive {
+			return nil, errors.New("perusahaan sedang dinonaktifkan oleh administrator. Presensi tidak dapat diproses.")
+		}
 	}
 
 	today := time.Now().Format("2006-01-02")
@@ -155,6 +165,16 @@ func (u *attendanceUsecase) CheckIn(ctx context.Context, req domain.CheckInReque
 }
 
 func (u *attendanceUsecase) CheckOut(ctx context.Context, employeeID uuid.UUID, lat, lng float64) (*domain.Attendance, error) {
+	if u.compRepo != nil {
+		emp, err := u.empRepo.GetByID(ctx, employeeID)
+		if err == nil && emp != nil {
+			comp, err := u.compRepo.GetByID(ctx, emp.CompanyID)
+			if err == nil && comp != nil && !comp.IsActive {
+				return nil, errors.New("perusahaan sedang dinonaktifkan oleh administrator. Presensi tidak dapat diproses.")
+			}
+		}
+	}
+
 	today := time.Now().Format("2006-01-02")
 	existing, err := u.attRepo.GetTodayAttendance(ctx, employeeID, today)
 	if err != nil || existing == nil || existing.CheckInTime == nil {

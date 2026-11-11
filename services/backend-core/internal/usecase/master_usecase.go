@@ -16,6 +16,7 @@ type MasterUsecase interface {
 	GetCompany(ctx context.Context, id uuid.UUID) (*domain.Company, error)
 	CreateCompany(ctx context.Context, c *domain.Company) error
 	UpdateCompany(ctx context.Context, c *domain.Company) error
+	ToggleCompanyActive(ctx context.Context, id uuid.UUID, isActive bool) (*domain.Company, error)
 
 	// Locations / Branches (Owner & Admin Company)
 	ListLocations(ctx context.Context, companyID uuid.UUID) ([]domain.Branch, error)
@@ -70,6 +71,13 @@ func (u *masterUsecase) CreateCompany(ctx context.Context, c *domain.Company) er
 
 func (u *masterUsecase) UpdateCompany(ctx context.Context, c *domain.Company) error {
 	return u.companyRepo.Update(ctx, c)
+}
+
+func (u *masterUsecase) ToggleCompanyActive(ctx context.Context, id uuid.UUID, isActive bool) (*domain.Company, error) {
+	if err := u.companyRepo.SetActive(ctx, id, isActive); err != nil {
+		return nil, err
+	}
+	return u.companyRepo.GetByID(ctx, id)
 }
 
 // Locations

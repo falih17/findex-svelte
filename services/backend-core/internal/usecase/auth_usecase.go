@@ -20,14 +20,16 @@ type LoginResult struct {
 }
 
 type authUsecase struct {
-	empRepo   domain.EmployeeRepository
-	jwtSecret string
+	empRepo     domain.EmployeeRepository
+	compRepo    domain.CompanyRepository
+	jwtSecret   string
 }
 
-func NewAuthUsecase(empRepo domain.EmployeeRepository, jwtSecret string) AuthUsecase {
+func NewAuthUsecase(empRepo domain.EmployeeRepository, compRepo domain.CompanyRepository, jwtSecret string) AuthUsecase {
 	return &authUsecase{
-		empRepo:   empRepo,
-		jwtSecret: jwtSecret,
+		empRepo:     empRepo,
+		compRepo:    compRepo,
+		jwtSecret:   jwtSecret,
 	}
 }
 
@@ -39,6 +41,14 @@ func (u *authUsecase) Login(ctx context.Context, email, password string) (*Login
 
 	if err := bcrypt.CompareHashAndPassword([]byte(emp.PasswordHash), []byte(password)); err != nil {
 		return nil, errors.New("email atau password salah")
+	}
+
+	// Owner can always log in. For ADMIN_COMPANY and EMPLOYEE, verify if company is active
+	if emp.Role != domain.RoleOwner && u.compRepo != nil {
+		comp, err := u.compRepo.GetByID(ctx, emp.CompanyID)
+		if err == nil && comp != nil && !comp.IsActive {
+			return nil, errors.New("perusahaan Anda sedang dinonaktifkan oleh administrator. Silakan hubungi pemilik platform.")
+		}
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{

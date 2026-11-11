@@ -8,15 +8,17 @@ import (
 )
 
 type Company struct {
-	ID           uuid.UUID        `json:"id"`
-	Code         string           `json:"code"`
-	Name         string           `json:"name"`
-	PlanTier     string           `json:"plan_tier"`
-	MaxEmployees int              `json:"max_employees"`
-	IsActive     bool             `json:"is_active"`
-	Settings     *CompanySettings `json:"settings,omitempty"`
-	CreatedAt    time.Time        `json:"created_at"`
-	UpdatedAt    time.Time        `json:"updated_at"`
+	ID             uuid.UUID        `json:"id"`
+	Code           string           `json:"code"`
+	Name           string           `json:"name"`
+	PlanTier       string           `json:"plan_tier"`
+	MaxEmployees   int              `json:"max_employees"`
+	IsActive       bool             `json:"is_active"`
+	TotalEmployees int              `json:"total_employees"`
+	TotalBranches  int              `json:"total_branches"`
+	Settings       *CompanySettings `json:"settings,omitempty"`
+	CreatedAt      time.Time        `json:"created_at"`
+	UpdatedAt      time.Time        `json:"updated_at"`
 }
 
 type CompanySettings struct {
@@ -33,6 +35,7 @@ type CompanyRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*Company, error)
 	Create(ctx context.Context, c *Company) error
 	Update(ctx context.Context, c *Company) error
+	SetActive(ctx context.Context, id uuid.UUID, isActive bool) error
 	GetSettings(ctx context.Context, companyID uuid.UUID) (*CompanySettings, error)
 	UpdateSettings(ctx context.Context, settings *CompanySettings) error
 }

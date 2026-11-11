@@ -22,9 +22,15 @@ func (r *companyRepository) List(ctx context.Context) ([]domain.Company, error) 
 		SELECT 
 			c.id, c.code, c.name, c.plan_tier, c.max_employees, c.is_active, 
 			c.created_at, c.updated_at,
-			s.timezone, s.face_similarity_threshold, s.allow_wfh_default, s.strict_geofence, s.auto_overtime_approval
+			s.timezone, s.face_similarity_threshold, s.allow_wfh_default, s.strict_geofence, s.auto_overtime_approval,
+			COALESCE(COUNT(DISTINCT e.id), 0) AS total_employees,
+			COALESCE(COUNT(DISTINCT b.id), 0) AS total_branches
 		FROM companies c
 		LEFT JOIN company_settings s ON c.id = s.company_id
+		LEFT JOIN employees e ON c.id = e.company_id
+		LEFT JOIN branches b ON c.id = b.company_id
+		GROUP BY c.id, c.code, c.name, c.plan_tier, c.max_employees, c.is_active, c.created_at, c.updated_at,
+		         s.timezone, s.face_similarity_threshold, s.allow_wfh_default, s.strict_geofence, s.auto_overtime_approval
 		ORDER BY c.created_at DESC`
 
 	rows, err := r.db.Query(ctx, query)
@@ -44,6 +50,7 @@ func (r *companyRepository) List(ctx context.Context) ([]domain.Company, error) 
 			&c.ID, &c.Code, &c.Name, &c.PlanTier, &c.MaxEmployees, &c.IsActive,
 			&c.CreatedAt, &c.UpdatedAt,
 			&tz, &sim, &wfh, &strict, &autoOT,
+			&c.TotalEmployees, &c.TotalBranches,
 		); err != nil {
 			return nil, err
 		}
@@ -66,17 +73,39 @@ func (r *companyRepository) List(ctx context.Context) ([]domain.Company, error) 
 
 func (r *companyRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Company, error) {
 	query := `
-		SELECT id, code, name, plan_tier, max_employees, is_active, created_at, updated_at
-		FROM companies WHERE id = $1`
+		SELECT 
+			c.id, c.code, c.name, c.plan_tier, c.max_employees, c.is_active, 
+			c.created_at, c.updated_at,
+			s.timezone, s.face_similarity_threshold, s.allow_wfh_default, s.strict_geofence, s.auto_overtime_approval
+		FROM companies c
+		LEFT JOIN company_settings s ON c.id = s.company_id
+		WHERE c.id = $1`
 
 	var c domain.Company
+	var tz *string
+	var sim *float64
+	var wfh, strict, autoOT *bool
+
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&c.ID, &c.Code, &c.Name, &c.PlanTier, &c.MaxEmployees, &c.IsActive,
 		&c.CreatedAt, &c.UpdatedAt,
+		&tz, &sim, &wfh, &strict, &autoOT,
 	)
 	if err != nil {
 		return nil, err
 	}
+
+	if tz != nil {
+		c.Settings = &domain.CompanySettings{
+			CompanyID:               c.ID,
+			Timezone:                *tz,
+			FaceSimilarityThreshold: *sim,
+			AllowWFHDefault:         *wfh,
+			StrictGeofence:          *strict,
+			AutoOvertimeApproval:    *autoOT,
+		}
+	}
+
 	return &c, nil
 }
 
@@ -118,6 +147,12 @@ func (r *companyRepository) Update(ctx context.Context, c *domain.Company) error
 		WHERE id = $5`
 
 	_, err := r.db.Exec(ctx, query, c.Name, c.PlanTier, c.MaxEmployees, c.IsActive, c.ID)
+	return err
+}
+
+func (r *companyRepository) SetActive(ctx context.Context, id uuid.UUID, isActive bool) error {
+	query := `UPDATE companies SET is_active = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`
+	_, err := r.db.Exec(ctx, query, isActive, id)
 	return err
 }
 

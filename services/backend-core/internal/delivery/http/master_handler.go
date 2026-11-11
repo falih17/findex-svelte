@@ -77,6 +77,33 @@ func (h *MasterHandler) UpdateCompany(c *fiber.Ctx) error {
 	return response.Success(c, fiber.StatusOK, "Data perusahaan berhasil diperbarui", comp)
 }
 
+func (h *MasterHandler) ToggleCompanyStatus(c *fiber.Ctx) error {
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return response.Error(c, fiber.StatusBadRequest, "ID company tidak valid")
+	}
+
+	type StatusRequest struct {
+		IsActive bool `json:"is_active"`
+	}
+	var req StatusRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.Error(c, fiber.StatusBadRequest, "Payload status tidak valid")
+	}
+
+	comp, err := h.masterUsecase.ToggleCompanyActive(c.Context(), id, req.IsActive)
+	if err != nil {
+		return response.Error(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	statusStr := "dinonaktifkan"
+	if req.IsActive {
+		statusStr = "diaktifkan"
+	}
+
+	return response.Success(c, fiber.StatusOK, fmt.Sprintf("Perusahaan '%s' berhasil %s", comp.Name, statusStr), comp)
+}
+
 // -----------------------------------------------------------------------------
 // 2. DATA LOCATION / GEOFENCE (Owner & Admin Company)
 // -----------------------------------------------------------------------------
