@@ -1,9 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { 
-		Card, Table, TableHead, TableHeadCell, TableBody, TableBodyRow, TableBodyCell, 
-		Badge, Button, Alert, Spinner, Indicator 
-	} from 'flowbite-svelte';
+	import { Alert, Spinner } from 'flowbite-svelte';
 	import { auth } from '$lib/stores/auth.svelte';
 
 	let loading = $state(true);
@@ -32,79 +29,88 @@
 	});
 </script>
 
-<div class="max-w-4xl mx-auto space-y-5">
+<div class="space-y-6">
 	<!-- Page Header -->
-	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gray-800 pb-3">
+	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-200">
 		<div>
-			<h1 class="text-xl font-bold text-white flex items-center gap-2">
-				Riwayat Presensi Saya
-				<Badge color="green" class="text-[10px] font-mono">LOG BIOMETRIK</Badge>
-			</h1>
-			<p class="text-xs text-gray-400 mt-0.5">Histori kehadiran, koordinat GPS & verifikasi kemiripan wajah</p>
+			<h1 class="text-2xl font-bold text-slate-900 tracking-tight">Riwayat Presensi Saya</h1>
+			<p class="text-xs text-slate-500 mt-0.5">Histori kehadiran, koordinat GPS & verifikasi kemiripan wajah biometrik</p>
 		</div>
-		<Button size="xs" color="dark" href="/" class="text-xs">
-			← Kembali ke Kamera
-		</Button>
+		<a
+			href="/"
+			class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold text-xs rounded-lg shadow-2xs transition-all"
+		>
+			<span>← Kembali ke Kamera</span>
+		</a>
 	</div>
 
 	{#if loading}
-		<div class="flex justify-center items-center py-12 gap-3 text-gray-400 text-sm">
-			<Spinner size="6" color="green" /> Memuat data histori presensi...
+		<div class="text-center py-12 text-slate-500 text-sm">
+			<Spinner size="4" class="mr-2 inline" /> Memuat data histori presensi...
 		</div>
 	{:else if errorMsg}
 		<Alert color="red" class="text-xs">
 			{errorMsg}
 		</Alert>
 	{:else if history.length === 0}
-		<Card padding="xl" class="bg-gray-900 border-gray-800 text-center max-w-none">
-			<p class="text-sm font-semibold text-gray-300">Belum ada catatan presensi</p>
-			<p class="text-xs text-gray-500 mt-1">Anda belum melakukan clock-in atau riwayat kosong.</p>
-			<div class="mt-4">
-				<Button size="xs" color="green" href="/">Mulai Presensi Sekarang</Button>
+		<div class="bg-white border border-slate-200/90 rounded-2xl p-12 text-center shadow-2xs space-y-3">
+			<div class="w-12 h-12 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto text-xl">
+				📅
 			</div>
-		</Card>
+			<div class="text-sm font-bold text-slate-800">Belum Ada Catatan Presensi</div>
+			<p class="text-xs text-slate-400 max-w-sm mx-auto">
+				Anda belum melakukan clock-in untuk akun ini. Silakan mulai presensi di halaman utama.
+			</p>
+			<div class="pt-2">
+				<a href="/" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-2xs inline-block">
+					Presensi Sekarang
+				</a>
+			</div>
+		</div>
 	{:else}
-		<Card padding="md" class="bg-gray-900 border-gray-800 max-w-none">
+		<div class="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-2xs space-y-4">
 			<div class="overflow-x-auto">
-				<Table hoverable={true} class="text-left text-xs text-gray-300">
-					<TableHead class="bg-gray-800 text-gray-400 border-b border-gray-700">
-						<TableHeadCell>Tanggal</TableHeadCell>
-						<TableHeadCell>Waktu Masuk</TableHeadCell>
-						<TableHeadCell>Jarak Kantor</TableHeadCell>
-						<TableHeadCell>Biometrik Wajah</TableHeadCell>
-						<TableHeadCell>Status Kehadiran</TableHeadCell>
-						<TableHeadCell>Waktu Pulang</TableHeadCell>
-					</TableHead>
-					<TableBody class="divide-y divide-gray-800">
+				<table class="w-full text-left text-xs">
+					<thead>
+						<tr class="text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+							<th class="pb-3 pl-2">Tanggal</th>
+							<th class="pb-3">Waktu Masuk</th>
+							<th class="pb-3">Jarak Kantor</th>
+							<th class="pb-3">Biometrik Wajah</th>
+							<th class="pb-3">Status Kehadiran</th>
+							<th class="pb-3 pr-2 text-right">Waktu Pulang</th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-slate-100">
 						{#each history as item}
-							<TableBodyRow class="hover:bg-gray-800/50">
-								<TableBodyCell class="font-semibold text-white">
-									{item.attendance_date}
-								</TableBodyCell>
-								<TableBodyCell class="font-mono text-gray-300">
+							<tr class="hover:bg-slate-50/70 transition-colors">
+								<td class="py-3.5 pl-2 font-bold text-slate-900">{item.attendance_date}</td>
+								<td class="py-3.5 font-mono text-slate-800">
 									{item.check_in_time ? new Date(item.check_in_time).toLocaleTimeString('id-ID') : '-'}
-								</TableBodyCell>
-								<TableBodyCell class="text-gray-300 font-mono">
+								</td>
+								<td class="py-3.5 font-mono text-slate-600">
 									{Math.round(item.check_in_distance_meters || 0)}m
-								</TableBodyCell>
-								<TableBodyCell>
-									<span class="font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-										{Math.round((item.check_in_similarity_score || 0) * 100)}% Match
-									</span>
-								</TableBodyCell>
-								<TableBodyCell>
-									<Badge color={item.check_in_status === 'ON_TIME' ? 'green' : item.check_in_status === 'LATE' ? 'yellow' : 'red'} class="text-[10px] font-bold">
+								</td>
+								<td class="py-3.5 font-mono font-bold text-emerald-600">
+									{Math.round((item.check_in_similarity_score || 0) * 100)}% Match
+								</td>
+								<td class="py-3.5">
+									<span class={`px-2.5 py-0.5 rounded-full font-bold text-[10px] ${
+										item.check_in_status === 'ON_TIME'
+											? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+											: 'bg-amber-50 text-amber-700 border border-amber-200'
+									}`}>
 										{item.check_in_status}
-									</Badge>
-								</TableBodyCell>
-								<TableBodyCell class="font-mono text-gray-400">
+									</span>
+								</td>
+								<td class="py-3.5 pr-2 text-right font-mono text-slate-500">
 									{item.check_out_time ? new Date(item.check_out_time).toLocaleTimeString('id-ID') : '-'}
-								</TableBodyCell>
-							</TableBodyRow>
+								</td>
+							</tr>
 						{/each}
-					</TableBody>
-				</Table>
+					</tbody>
+				</table>
 			</div>
-		</Card>
+		</div>
 	{/if}
 </div>

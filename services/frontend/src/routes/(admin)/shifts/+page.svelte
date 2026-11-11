@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { 
-		Card, Table, TableHead, TableHeadCell, TableBody, TableBodyRow, TableBodyCell, 
-		Button, Badge, Modal, Label, Input, Alert, Spinner
+		Modal, Label, Input, Alert, Spinner
 	} from 'flowbite-svelte';
 	import { auth } from '$lib/stores/auth.svelte';
 
@@ -60,16 +59,16 @@
 					start_time: startTime,
 					check_in_deadline: checkInDeadline,
 					earliest_checkout_time: earliestCheckout,
-					end_time: endTime,
-					grace_period_late_minutes: 15,
-					min_work_hours: 8
+					end_time: endTime
 				})
 			});
 
 			const json = await res.json();
-			if (!res.ok) throw new Error(json.error || 'Gagal membuat shift.');
+			if (!res.ok) {
+				throw new Error(json.error || 'Gagal menyimpan shift.');
+			}
 
-			successMsg = `Jadwal shift "${name}" berhasil disimpan!`;
+			successMsg = `Shift "${name}" berhasil ditambahkan!`;
 			showModal = false;
 			loadShifts();
 		} catch (err: any) {
@@ -78,16 +77,20 @@
 	}
 </script>
 
-<div class="space-y-6 max-w-5xl mx-auto">
+<div class="space-y-6">
 	<!-- Page Header -->
-	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gray-800 pb-4">
+	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-200">
 		<div>
-			<h1 class="text-2xl font-bold text-white tracking-tight">Manajemen Jadwal Kerja & Shift</h1>
-			<p class="text-xs text-gray-400">Atur jam mulai kerja, batas akhir check-in, dan waktu paling awal boleh check-out</p>
+			<h1 class="text-2xl font-bold text-slate-900 tracking-tight">Jadwal & Shift Kerja</h1>
+			<p class="text-xs text-slate-500 mt-0.5">Konfigurasi jam masuk, batas telat, dan waktu awal checkout pegawai</p>
 		</div>
-		<Button color="green" size="sm" onclick={() => { showModal = true; errorMsg = ''; }}>
-			➕ Tambah Shift Baru
-		</Button>
+		<button
+			type="button"
+			onclick={() => { showModal = true; errorMsg = ''; successMsg = ''; }}
+			class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-lg shadow-sm shadow-indigo-600/20 transition-all"
+		>
+			<span>➕ Tambah Shift Baru</span>
+		</button>
 	</div>
 
 	{#if successMsg}
@@ -102,91 +105,94 @@
 		</Alert>
 	{/if}
 
-	<!-- Shifts Table -->
-	<Card class="bg-gray-900 border-gray-800 p-4 max-w-none shadow-xl">
-		<Table hoverable class="text-xs text-left">
-			<TableHead class="text-gray-400 border-b border-gray-800 bg-gray-800/40">
-				<TableHeadCell>Nama Shift</TableHeadCell>
-				<TableHeadCell>Jam Masuk Kerja</TableHeadCell>
-				<TableHeadCell>Batas Akhir Check-In</TableHeadCell>
-				<TableHeadCell>Awal Boleh Check-Out</TableHeadCell>
-				<TableHeadCell>Jam Pulang Kerja</TableHeadCell>
-				<TableHeadCell>Aturan Keterlambatan</TableHeadCell>
-			</TableHead>
-			<TableBody class="divide-y divide-gray-800">
-				{#if loading}
-					<TableBodyRow>
-						<TableBodyCell colspan={6} class="text-center py-8 text-gray-500">
-							<Spinner size="4" class="mr-2 inline" /> Memuat jadwal shift...
-						</TableBodyCell>
-					</TableBodyRow>
-				{:else if shifts.length === 0}
-					<TableBodyRow>
-						<TableBodyCell colspan={6} class="text-center py-8 text-gray-500">
-							Belum ada jadwal shift. Silakan buat shift baru.
-						</TableBodyCell>
-					</TableBodyRow>
-				{:else}
-					{#each shifts as s}
-						<TableBodyRow class="hover:bg-gray-800/40">
-							<TableBodyCell class="font-semibold text-white">{s.name}</TableBodyCell>
-							<TableBodyCell class="font-mono text-emerald-400 font-bold">{s.start_time}</TableBodyCell>
-							<TableBodyCell class="font-mono text-amber-400 font-semibold">
-								{s.check_in_deadline || s.start_time}
-								<span class="block text-[10px] text-gray-500 font-sans">Lewat batas = Late</span>
-							</TableBodyCell>
-							<TableBodyCell class="font-mono text-purple-400 font-semibold">
-								{s.earliest_checkout_time || s.end_time}
-								<span class="block text-[10px] text-gray-500 font-sans">Sebelum waktu ini = Early</span>
-							</TableBodyCell>
-							<TableBodyCell class="font-mono text-white">{s.end_time}</TableBodyCell>
-							<TableBodyCell>
-								<Badge color="dark" class="font-mono text-[10px]">Toleransi: {s.grace_period_late_minutes || 15}m</Badge>
-							</TableBodyCell>
-						</TableBodyRow>
-					{/each}
-				{/if}
-			</TableBody>
-		</Table>
-	</Card>
+	<!-- Shift Table Card -->
+	<div class="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-2xs space-y-4">
+		{#if loading}
+			<div class="text-center py-12 text-slate-500 text-sm">
+				<Spinner size="4" class="mr-2 inline" /> Memuat daftar jadwal shift...
+			</div>
+		{:else if shifts.length === 0}
+			<div class="text-center py-10 text-slate-400 text-xs">
+				Belum ada jadwal shift. Klik "Tambah Shift Baru" untuk membuat jadwal kerja pertama.
+			</div>
+		{:else}
+			<div class="overflow-x-auto">
+				<table class="w-full text-left text-xs">
+					<thead>
+						<tr class="text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+							<th class="pb-3 pl-2">Nama Shift</th>
+							<th class="pb-3">Jam Masuk</th>
+							<th class="pb-3">Batas Akhir Check-in</th>
+							<th class="pb-3">Awal Pulang</th>
+							<th class="pb-3">Jam Selesai</th>
+							<th class="pb-3 pr-2 text-right">Status Toleransi</th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-slate-100">
+						{#each shifts as s}
+							<tr class="hover:bg-slate-50/70 transition-colors">
+								<td class="py-3.5 pl-2 font-bold text-slate-900">{s.name}</td>
+								<td class="py-3.5 font-mono text-indigo-600 font-semibold">{s.start_time}</td>
+								<td class="py-3.5 font-mono text-amber-600 font-semibold">
+									<span class="px-2 py-0.5 rounded bg-amber-50 border border-amber-200">
+										{s.check_in_deadline || s.start_time}
+									</span>
+								</td>
+								<td class="py-3.5 font-mono text-slate-600">
+									{s.earliest_checkout_time || s.end_time}
+								</td>
+								<td class="py-3.5 font-mono text-slate-900 font-bold">{s.end_time}</td>
+								<td class="py-3.5 pr-2 text-right">
+									<span class="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-[10px]">
+										Aktif
+									</span>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
+	</div>
 </div>
 
 <!-- Modal Tambah Shift -->
-<Modal bind:open={showModal} size="md" autoclose={false} class="bg-gray-900 text-white">
-	<h3 class="text-base font-bold text-white mb-4">Pengaturan Jadwal Shift Baru</h3>
-	<form onsubmit={handleCreateShift} class="space-y-3.5 text-xs">
+<Modal bind:open={showModal} size="md" autoclose={false} title="Tambah Jadwal Shift Pegawai">
+	<form onsubmit={handleCreateShift} class="space-y-4 text-xs">
 		<div>
-			<Label class="mb-1 text-xs text-gray-300">Nama Shift</Label>
-			<Input bind:value={name} required placeholder="cth: Shift Pagi Kantor / Shift Lapangan" class="bg-gray-800 text-xs" />
+			<Label for="sname" class="mb-1 text-slate-700">Nama Shift Kerja</Label>
+			<Input id="sname" bind:value={name} placeholder="Contoh: Shift Reguler Pagi" required />
 		</div>
 
-		<div class="grid grid-cols-2 gap-2">
+		<div class="grid grid-cols-2 gap-3">
 			<div>
-				<Label class="mb-1 text-xs text-gray-300">Jam Mulai Masuk</Label>
-				<Input type="time" step="1" bind:value={startTime} required class="bg-gray-800 text-xs" />
+				<Label for="stime" class="mb-1 text-slate-700">Jam Mulai Masuk</Label>
+				<Input id="stime" type="time" step="1" bind:value={startTime} required />
 			</div>
 			<div>
-				<Label class="mb-1 text-xs text-amber-300 font-semibold">Batas Akhir Check-In</Label>
-				<Input type="time" step="1" bind:value={checkInDeadline} required class="bg-gray-800 text-xs border-amber-500/50" />
-				<span class="text-[10px] text-gray-400">Presensi setelah jam ini = Terlambat</span>
-			</div>
-		</div>
-
-		<div class="grid grid-cols-2 gap-2">
-			<div>
-				<Label class="mb-1 text-xs text-purple-300 font-semibold">Waktu Awal Checkout</Label>
-				<Input type="time" step="1" bind:value={earliestCheckout} required class="bg-gray-800 text-xs border-purple-500/50" />
-				<span class="text-[10px] text-gray-400">Pulang sebelum ini = Early Leave</span>
-			</div>
-			<div>
-				<Label class="mb-1 text-xs text-gray-300">Jam Selesai Kerja</Label>
-				<Input type="time" step="1" bind:value={endTime} required class="bg-gray-800 text-xs" />
+				<Label for="cdeadline" class="mb-1 text-amber-700 font-semibold">Batas Akhir Check-In</Label>
+				<Input id="cdeadline" type="time" step="1" bind:value={checkInDeadline} required />
 			</div>
 		</div>
 
-		<div class="flex justify-end gap-2 pt-2 border-t border-gray-800">
-			<Button color="light" size="sm" onclick={() => showModal = false}>Batal</Button>
-			<Button type="submit" color="green" size="sm" class="font-bold text-slate-950">Simpan Jadwal Shift</Button>
+		<div class="grid grid-cols-2 gap-3">
+			<div>
+				<Label for="echeckout" class="mb-1 text-slate-700">Waktu Awal Checkout</Label>
+				<Input id="echeckout" type="time" step="1" bind:value={earliestCheckout} required />
+			</div>
+			<div>
+				<Label for="etime" class="mb-1 text-slate-700">Jam Selesai Shift</Label>
+				<Input id="etime" type="time" step="1" bind:value={endTime} required />
+			</div>
+		</div>
+
+		<div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+			<button type="button" class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs" onclick={() => showModal = false}>
+				Batal
+			</button>
+			<button type="submit" class="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-2xs">
+				Simpan Jadwal Shift
+			</button>
 		</div>
 	</form>
 </Modal>
